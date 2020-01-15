@@ -5,6 +5,8 @@
 // Load up the Rocky web API management
 #require "Rocky.agent.lib.nut:3.0.0"
 
+// Load up the Twilio library
+#require "Twilio.class.nut:1.0"
 
 /*
  * CONSTANTS: WEB UI HTML
@@ -361,6 +363,7 @@ function checkSecure(context) {
 
 // Set the Twilio client
 twilioClient = Twilio("YOUR_ACCOUNT_SID", "YOUR_AUTH_TOKEN", "YOUR_PHONE_NUMBER");
+#import "creds.nut"
 
 // Load settings from persistent storage
 local loaded = server.load();
