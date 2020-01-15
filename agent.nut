@@ -129,13 +129,6 @@ const HTML_STRING = @"
                         </div>
                     </div>
                     <div class='col-3'></div>
-                    <hr />
-                </div>
-                <!-- Colophon Row -->
-                <div class='row'>
-                    <div class='col'>
-                        <p class='colophon'>&nbsp;<br />NetTester &copy; Tony Smith, 2018-20<br /><a href='https://github.com/smittytone/Weather' target='_new'><img src='https://smittytone.github.io/images/rassilon.png' width='32' height='32' /></a></p>
-                    </div>
                 </div>
             </div>
         </div>
