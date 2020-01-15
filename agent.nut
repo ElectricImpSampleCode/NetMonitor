@@ -348,6 +348,24 @@ function checkSecure(context) {
     return true;
 }
 
+function watchdog() {
+    // Record the device state as recorded by the agent
+    local state = device.isconnected();
+
+    if (state != isConnected) {
+        // The device state has changed, so send an SMS
+        isConnected = state;
+        if (targetNumber != null) {
+            local message = "Net Monitor is now " + (isConnected ? "connected" : "disconnected");
+            twilioClient.send(targetNumber, message, function(response) {
+                server.log("Reponse from Twilio: " + response.body + " (code: " + response.statuscode + ")");
+            });
+        }
+    }
+
+    imp.wakeup(15, watchdog);
+}
+
 
 /*
  * RUNTIME START
@@ -419,26 +437,12 @@ webAPI.get("/", function(context) {
 
 // Add a handler for GET requests made to /current
 // This will return status JSON to the web UI.
-// NOTE The UI asks for this every 20 seconds, so this operates
-//      as a de facto connection watchdog
+// NOTE The UI asks for this every 20 seconds
 webAPI.get("/current", function(context) {
 
     if (!checkSecure(context)) {
         context.send(401, "Insecure access forbidden");
         return;
-    }
-
-    // Record the device state as recorded by the agent
-    local state = device.isconnected();
-    if (state != isConnected) {
-        // The device state has changed, so send an SMS
-        isConnected = state;
-        if (targetNumber != null) {
-            local message = "Net Monitor is now " + (isConnected ? "connected" : "disconnected");
-            twilioClient.send(targetNumber, message, function(response) {
-                server.log("Reponse from Twilio: " + response.body + " (code: " + response.statuscode + ")");
-            });
-        }
     }
 
     local sendData = {};
@@ -547,3 +551,8 @@ webAPI.get("/images/([^/]*)", function(context) {
     // ...and send it
     context.send(200, image);
 });
+
+/*
+ * Start the watchdog
+ */
+watchdog();
