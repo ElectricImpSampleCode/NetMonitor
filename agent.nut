@@ -40,9 +40,6 @@ const HTML_STRING = @"
         .showhidewlans {-webkit-touch-callout: none; -webkit-user-select: none; -khtml-user-select: none;
                         -moz-user-select: none; -ms-user-select: none; user-select: none; cursor: pointer;
                         margin-bottom:0px; vertical-align: middle;}
-        .showhidewifi {-webkit-touch-callout: none; -webkit-user-select: none; -khtml-user-select: none;
-                        -moz-user-select: none; -ms-user-select: none; user-select: none; cursor: pointer;
-                        margin-bottom:0px; vertical-align: middle;}
         .modal {display: none; position: fixed; z-index: 1; left: 0; top: 0; width: 100%%; height: 100%%; overflow: auto;
                 background-color: rgba(0,0,0,0.4)}
     .modal-content-ok {background-color: #37ACD1; margin: 10%% auto; padding: 5px;
@@ -76,7 +73,7 @@ const HTML_STRING = @"
                         <h2 class='text-center'>Net Monitor</h2>
                         <h4 id='status' class='text-center'>Device is <span>disconnected</span></h4>
                         <div class='row' align='center'>
-
+                            <div class='col-1'></div>
                             <div class='col-5'>
                                 <p class='box' align='right'><b>Device IP</b></p>
                                 <p class='box' align='right'><b>WAN IP</b></p>
@@ -91,13 +88,13 @@ const HTML_STRING = @"
                                 <p class='box' align='left' id='nm'><span>Unknown</span></p align='left'>
                                 <p class='box' align='left' id='bc'><span>Unknown</span></p>
                             </div>
-
+                            <div class='col-1'></div>
                         </div>
                         <hr />
                     </div>
                     <div class='col-3'></div>
                 </div>
-                <!-- Title and Data Readout Row -->
+                <!-- Nearby Networks Readout -->
                 <div class='row' align='center'>
                     <div class='col-3'></div>
                     <div class='col-6'>
@@ -110,26 +107,7 @@ const HTML_STRING = @"
                     </div>
                     <div class='col-3'></div>
                 </div>
-                <!-- WiFi Settings Row -->
-                <div class='row' align='left'>
-                    <div class='col-3'></div>
-                    <div class='col-6'>
-                        <h4 class='showhidewifi text-center'>WiFi Settings</h4>
-                        <div class='wifi'>
-                            <form id='name-form'>
-                                <div class='update-button boxcontent'>
-                                    <p class='boxhead'>SSID<br />
-                                    <input id='ssid' style='color:black;height:38px;width:100%%;vertical-align:middle;font-family:Abel;' placeholder='Network name'></input></p>
-                                    <p class='boxhead'>Password<br />
-                                    <input id='pwd' style='color:black;height:38px;width:100%%;vertical-align:middle;font-family:Abel;' placeholder='Network Password' type='password'></input></p>
-                                    <p align='center'><button class='btn btn-warning' style='vertical-align:middle;font-family:Abel;' type='submit' id='update-button'>Update</button></p>
-                                    <p class='little'>Use with caution: incorrect values will cause the imp to go offline, requiring direct access and BlinkUp to re-apply the correct settings.</p>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                    <div class='col-3'></div>
-                </div>
+                <p>&nbsp;</p>
             </div>
         </div>
     </div>
@@ -141,9 +119,6 @@ const HTML_STRING = @"
     var state = 0;
     var timer;
 
-    // Hide the WiFi controls
-    $('.wifi').hide();
-
     // Get initial readings
     getState(updateReadout);
 
@@ -151,23 +126,15 @@ const HTML_STRING = @"
     var stateTimer = setInterval(checkState, 20000);
 
     // Set UI click actions
-    $('.update-button button').click(update);
-    //$('.search-button button').click(wsearch);
     document.getElementById('search-button').onclick = wsearch;
 
-    // Configure Show/Hide WiFi Settings toggle
-    $('.showhidewifi').click(function() {
-        $('.wifi').toggle();
-    });
-
+    // Configure Show/Hide Nearby Networks toggle
     $('.showhidewlans').click(function() {
         $('.wlans').toggle();
     });
 
     // Functions
     function updateReadout(data) {
-        $('#ssid').val(data.ssid);
-        $('#pwd').val(data.pwd);
         $('#status span').text(data.state);
         $('#ip span').text(data.ip);
         $('#wip span').text(data.wip);
@@ -195,25 +162,6 @@ const HTML_STRING = @"
                 if (callback) {
                     callback(response);
                 }
-            }
-        });
-    }
-
-    function update(e) {
-        // Apply new WiFi settings
-        e.preventDefault();
-        var s = document.getElementById('ssid').value;
-        var p = document.getElementById('pwd').value;
-        $('#name-form').trigger('reset');
-
-        // Trigger a forecast update
-        $.ajax({
-            url : agenturl + '/new',
-            type: 'POST',
-            cache: false,
-            data: JSON.stringify({ 'ssid' : s, 'pwd': p }),
-            success : function(response) {
-                getState(updateReadout);
             }
         });
     }
@@ -323,8 +271,8 @@ local wifiData = null;
 local wlanData = null;
 local wlanIP = null;
 local savedContext = null;
-local twilioClient = null;
 local isConnected = false;
+local twilioClient = null;
 local targetNumber = null;
 
 
@@ -373,39 +321,13 @@ function watchdog() {
  */
 
 // Set the Twilio client
-twilioClient = Twilio("YOUR_ACCOUNT_SID", "YOUR_AUTH_TOKEN", "YOUR_PHONE_NUMBER");
-#import "creds.nut"
-
-// Load settings from persistent storage
-local loaded = server.load();
-
-if (loaded.len() != 0) {
-    // Data was loaded (length will be zero if not), so retain the loaded WiFi data
-    wifiData = loaded;
-} else {
-    // There is no stored WiFi data, ask the device for its settings
-    // NOTE We wait ten seconds to be (fairly) sure the device is online
-    imp.wakeup(10, function() {
-        device.send("get.wifi.data", true);
-    });
-
-    // Populate the WiFi info table in the meantime
-    wifiData = {};
-    wifiData.ssid <- "";
-    wifiData.pwd <- "";
-}
+twilioClient = Twilio("YOUR_ACCOUNT_SID", "YOUR_AUTH_TOKEN", "YOUR_TWILIO_PHONE_NUMBER");
+targetNumber = "YOUR_MOBILE_PHONE_NUMBER";
+#import "~/dropbox/programming/imp/codes/twilio.nut"
 
 /*
  * Set handlers for messages sent by the device to the agent
  */
-device.on("report.wifi.ssid", function(value) {
-    // The device has reported the name of the WLAN it's connected to,
-    // so record that information then save the data to persisent storage
-    wifiData.ssid = value;
-    server.save(data);
-    server.log("SSID set from device");
-});
-
 device.on("send.net.status", function(info) {
     // The device has sent its WLAN status data, so record ti
     wlanData = info;
@@ -446,9 +368,8 @@ webAPI.get("/current", function(context) {
     }
 
     local sendData = {};
-    sendData.ssid <- wifiData.ssid;
-    sendData.pwd <- wifiData.pwd;
-    sendData.state <- isConnected ? "connected" : "disconnected or unknown";
+    isConnected = device.isconnected();
+    sendData.state <- isConnected ? "connected" : "disconnected";
 
     // If we have WLAN status data (we may not yet) send that too
     if (wlanData != null) {
@@ -464,53 +385,8 @@ webAPI.get("/current", function(context) {
     }
 
     // Return the status information to the web UI
+    server.log(http.jsonencode(sendData));
     context.send(200, http.jsonencode(sendData));
-});
-
-// Add a handler for POST requests made to /new
-// This applies a new SSID and password combo entered into the Web UI
-webAPI.post("/new", function(context) {
-
-    if (!checkSecure(context)) {
-        context.send(401, "Insecure access forbidden");
-        return;
-    }
-
-    try {
-        // Decode the supplied JSON
-        // NOTE This is embedded in a try...catch statement just in case
-        //      the received data is not JSON.
-        local sentData = http.jsondecode(context.req.rawbody);
-        local wasUpdated = false;
-
-        // Check that the incoming JSON contains info we can process by looking
-        // for specific keys in the table decoded from the JSON. If expected keys
-        // are present, and values have changed, keep the new info
-        if ("ssid" in sentData && wlanData.ssid != sentData.ssid) {
-            wlanData.ssid = sentData.ssid;
-            wasUpdated = true;
-        }
-
-        if ("pwd" in sentData && wlanData.pwd != sendData.pwd) {
-            wlanData.pwd = sentData.pwd;
-            wasUpdated = true;
-        }
-
-        if (wasUpdated) {
-            // Changes were made so relay them to the device and save the data
-            // to persistent storage
-            device.send("set.wifi.data", wlanData);
-            server.save(data);
-            server.log("Sending WiFi data to device");
-        }
-    } catch (err) {
-        server.error(err);
-        context.send(400, "Bad data posted");
-        return;
-    }
-
-    // Signal the requester that the request was accepted
-    context.send(200, "OK");
 });
 
 // Add a handler for GET requests made to /list
@@ -553,6 +429,6 @@ webAPI.get("/images/([^/]*)", function(context) {
 });
 
 /*
- * Start the watchdog
+ * Start the SMS alert watchdog
  */
 watchdog();
