@@ -3,18 +3,18 @@
  *
  */
 // Code version for Squinter
-#version "3.0.0"
+#version "2.1.1"
 
 /**
  * Disconection/reconnection Mananger
  *
- * Provides disconnectionManager, a gloabl object which operates as a handler for imp connection states.
+ * Provides disconnectionManager, a global object which operates as a handler for imp connection states.
  * It monitors connection state and will automatically attempt to reconnect when the imp disconnects unexpectedly
  *
  * @author    Tony Smith (@smittytone)
  * @copyright Tony Smith, 2018-19
  * @licence   MIT
- * @version   3.0.0
+ * @version   2.1.1
  *
  * @table
  *
@@ -32,7 +32,6 @@ disconnectionManager <- {
     "retries" : 0,
     "offtime" : null,
     "eventCallback" : null,
-    "nic": null,
 
     /**
      * Begin monitoring device connection state
@@ -77,13 +76,8 @@ disconnectionManager <- {
         // We do this to set our initial state
         disconnectionManager.isConnected = server.isconnected();
         if (!disconnectionManager.isConnected) {
-            if (nic) {
-                server.connectwith(nic, disconnectionManager._eventHandler.bindenv(this), disconnectionManager.reconnectTimeout);
-                disconnectionManager._wakeup({"message": "Manually connecting to server", "type": "connecting"});
-            } else {
-                server.connect(disconnectionManager._eventHandler.bindenv(this), disconnectionManager.reconnectTimeout);
-                disconnectionManager._wakeup({"message": "Manually connecting to server", "type": "connecting"});
-            }
+            disconnectionManager._wakeup({"message": "Manually connecting to server", "type": "connecting"});
+            server.connect(disconnectionManager._eventHandler.bindenv(this), disconnectionManager.reconnectTimeout);
         } else {
             disconnectionManager._wakeup({"type": "connected"});
         }
@@ -100,10 +94,10 @@ disconnectionManager <- {
             imp.onidle(function() {
                 server.flush(10);
                 server.disconnect();
-                disconnectionManager._wakeup({"message": "Manually disconnected from server", "type": "mdisconnected"});
+                disconnectionManager._wakeup({"message": "Manually disconnected from server", "type": "disconnected"});
             }.bindenv(this));
         } else {
-            disconnectionManager._wakeup({"type": "mdisconnected"});
+            disconnectionManager._wakeup({"type": "disconnected"});
         }
     },
 
@@ -155,7 +149,7 @@ disconnectionManager <- {
      * @param {integer} reason - The imp API (see server.connect()) connection/disconnection event code
      *
      */
-    "_eventHandler" : function(reason, iname = null) {
+    "_eventHandler" : function(reason) {
         // If we are not checking for unexpected disconnections, bail
         if (!disconnectionManager.monitoring) return;
 
@@ -288,20 +282,13 @@ disconnectionManager <- {
 
 
 /*
- * CONSTANTS
- *
- */
-const TRIAL_TIME = 30;
-
-/*
  * GLOBALS
  *
  */
-local green = hardware.pinC;
-local red = hardware.pinA;
-local yellow = hardware.pinD;
+local green = hardware.pinK;
+local red = hardware.pinN;
+local yellow = hardware.pinB;
 local networks = null;
-local networkIndex = 0;
 local isScanning = false;
 
 /*
@@ -315,8 +302,9 @@ local isScanning = false;
  *   YELLOW - device is attempting to connect
  *   RED - device is disconnected
  */
-green.configure(DIGITAL_OUT, (server.isconnected() ? 1 : 0));
-red.configure(DIGITAL_OUT, (server.isconnected() ? 0 : 1));
+local isConnected = server.isconnected();
+green.configure(DIGITAL_OUT, (isConnected ? 1 : 0));
+red.configure(DIGITAL_OUT, (isConnected ? 0 : 1));
 yellow.configure(DIGITAL_OUT, 0);
 
 // Register the connection state reporting callback
@@ -334,7 +322,7 @@ disconnectionManager.eventCallback = function(event) {
             local i = imp.net.info();
             agent.send("send.net.status", i.ipv4);
             i = "active" in i ? i.interface[i.active] : i.interface[0];
-            seriallog.log("Current RSSI " + ("rssi" in i ? i.rssi : "unknown"));
+            server.log("Current RSSI " + ("rssi" in i ? i.rssi : "unknown"));
         } else if (event.type == "disconnected") {
             // Set the LEDs to green off, yellow off, red on
             green.write(0);
@@ -359,16 +347,6 @@ disconnectionManager.start();
 /*
  * Register handlers for messages sent to the device by its agent
  */
-agent.on("set.wifi.data", function(wifi) {
-    // The agent is relaying new WiFi credentials from the web UI, so apply them
-    // then perform a reboot after ten seconds
-    server.log("Changing WiFi to SSID \'" + wifi.ssid + "\' in 10 seconds");
-    imp.setwificonfiguration(wifi.ssid, wifi.pwd);
-    imp.wakeup(10, function() {
-        imp.reset();
-    });
-});
-
 agent.on("get.wifi.data", function(dummy) {
     // The agent has requested WLAN status information which the web UI will display
     local i = imp.net.info();
@@ -376,10 +354,7 @@ agent.on("get.wifi.data", function(dummy) {
         // Get the active network interface and make sure it's WiFi
         local item = i.interface[i.active];
         if (item.type == "wifi") {
-            // Send the network's SSID
-            agent.send("report.wifi.ssid", item.ssid);
-
-            // And send the network data
+            // Send the network data
             agent.send("send.net.status", i.ipv4);
         }
     }
@@ -390,9 +365,10 @@ agent.on("get.wlan.list", function(dummy) {
     // a new scan if one is not already in progress
     if (!isScanning) {
         isScanning = true;
-        imp.scanwifinetworks(function(networks) {
+        imp.scanwifinetworks(function(wlans) {
             // This callback is triggered when the list has been retrieved
             isScanning = false;
+            networks = wlans;
 
             // Send the retrieved WLAN list to the agent
             agent.send("set.wlan.list", networks);
