@@ -296,6 +296,14 @@ function checkSecure(context) {
     return true;
 }
 
+function sorter(a, b) {
+    if (a.channel < b.channel) return -1;
+    if (a.channel > b.channel) return 1;
+    if (a.ssid.toupper() < b.ssid.toupper()) return -1;
+    if (a.ssid.toupper() > b.ssid.toupper()) return 1;
+    return 0;
+}
+
 function watchdog() {
     // Record the device state as recorded by the agent
     local state = device.isconnected();
@@ -338,6 +346,7 @@ device.on("set.wlan.list", function(networks) {
     // We return this list to the UI using the Rocky context we saved earlier
     // (see below)
     if (savedContext != null) {
+        networks.sort(sorter);
         savedContext.send(200, http.jsonencode({"list": networks}));
         savedContext = null;
     }
@@ -421,10 +430,10 @@ webAPI.get("/images/([^/]*)", function(context) {
     if (name == "s3.png") image = SIGNAL_3_PNG;
     if (name == "s4.png") image = SIGNAL_4_PNG;
 
-    // Make sure we let the browser know what kind of data we're sending...
+    // Make sure we let the browser know what kind of data we're sending
+    // and that it should cache the image data
     context.setHeader("Content-Type", "image/png");
-
-    // ...and send it
+    context.setHeader("Cache-Control", "max-age=86400");
     context.send(200, image);
 });
 
